@@ -1,5 +1,10 @@
 # KNOWN_ISSUES.md
 
+## Slice 3
+🟢 Low — Flagged Responses tab shows original DataFrame row index
+   numbers (e.g. 2, 4, 6) not sequential 1–N. Cosmetically minor,
+   does not affect data accuracy.
+
 ## Slice 2C
 ✅ Resolved — entropy flag label noise on human rows (threshold → 0.70)
 ✅ Resolved — Mahalanobis centroid polluted by bot rows (Pass 1 filter)

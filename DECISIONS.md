@@ -1,5 +1,13 @@
 # DECISIONS.md
 
+## Slice 3
+- Sidebar used for settings to keep main area clean and focused
+  on the step-by-step workflow
+- st.tabs() used for results preview instead of separate expanders —
+  cleaner UX for switching between flagged and full views
+- download_button data encoded as UTF-8 bytes directly from DataFrame
+  to avoid needing io.StringIO intermediary
+
 ## Slice 2C
 - Flag label threshold set to 0.70 (not 0.65 as originally specced)
   Reason: humans with perfectly uniform 1–7 distributions produce

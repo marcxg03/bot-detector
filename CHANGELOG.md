@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## Slice 3 — Streamlit UI
+- Built complete polished UI in app.py
+- Sidebar: settings panel, about expander, cutoff slider,
+  qualitative mode toggle, API key input
+- Main area: four labelled steps with captions and dividers
+- Results: metric row (Total/Flagged/Cutoff), tabbed preview
+  (Flagged Responses + Full Results), two download buttons
+- Tested on test_survey.csv — 15 participants, 6 flagged, 9 clean
+- All 16 manual test steps passing
+
 ## Slice 2C — Detection Engine Patch
 - Raised flag label threshold from 0.5 → 0.70 (Codex set 0.65,
   Claude Code corrected to 0.70 after entropy score math validated)

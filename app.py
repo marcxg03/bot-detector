@@ -1,16 +1,15 @@
-import io
-
-import pandas as pd
 import streamlit as st
+import pandas as pd
 
 from detector import run_detection
 from qualitative import run_qualitative
 
 
-st.set_page_config(page_title="Survey Bot Detector", layout="wide")
-
-st.title("Survey Bot Detector")
-st.write("Upload a survey CSV to automatically detect and flag bot-like responses.")
+st.set_page_config(
+    page_title="Survey Bot Detector",
+    page_icon="🔍",
+    layout="wide",
+)
 
 if "cutoff" not in st.session_state:
     st.session_state.cutoff = 75
@@ -21,111 +20,193 @@ if "qualitative_mode" not in st.session_state:
 if "api_key" not in st.session_state:
     st.session_state.api_key = ""
 
-uploaded_file = st.file_uploader("Upload Survey CSV", type=["csv"])
+if "df_raw" not in st.session_state:
+    st.session_state.df_raw = None
 
+if "df_results" not in st.session_state:
+    st.session_state.df_results = None
+
+if "uploaded_filename" not in st.session_state:
+    st.session_state.uploaded_filename = None
+
+st.sidebar.title("⚙️ Settings")
+
+with st.sidebar.expander("About this tool"):
+    st.write(
+        "Survey Bot Detector helps identify bot-like or low-quality survey responses "
+        "using quantitative response-pattern checks and optional qualitative text analysis."
+    )
+    st.write(
+        "Each participant receives a `bot_score` from 0 to 100, where 0 indicates "
+        "a clean-looking response pattern and 100 indicates highly suspicious behavior."
+    )
+    st.write(
+        "The full flagged download includes all original rows plus scoring columns, "
+        "while the cleaned download keeps only responses below your chosen cutoff."
+    )
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Suspicion Score Cutoff")
+cutoff = st.sidebar.slider(
+    "Suspicion Score Cutoff",
+    min_value=0,
+    max_value=100,
+    value=75,
+    label_visibility="collapsed",
+)
+st.sidebar.caption(
+    "Responses at or above this score are flagged as suspicious. Lower = stricter. "
+    "Default 75 works for most datasets."
+)
+st.session_state.cutoff = cutoff
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Qualitative Analysis Mode")
+qualitative_mode = st.sidebar.toggle(
+    "Enable Qualitative Mode",
+    help=(
+        "Analyzes open-ended text responses for AI-generated content. "
+        "Requires an Anthropic API key."
+    ),
+)
+st.sidebar.caption(
+    "When enabled, open-ended text responses are scored for AI-generated content "
+    "using the Claude API. Results appear as a separate ai_text_score column."
+)
+st.session_state.qualitative_mode = qualitative_mode
+if qualitative_mode:
+    api_key = st.sidebar.text_input(
+        "Anthropic API Key",
+        type="password",
+        placeholder="sk-ant-...",
+    )
+    st.sidebar.caption("Used only during this session. Never saved to disk.")
+    st.session_state.api_key = api_key
+else:
+    st.session_state.api_key = ""
+
+st.title("🔍 Survey Bot Detector")
+st.markdown(
+    "Automatically detect and flag bot-like responses in survey data. Upload a CSV, "
+    "run the analysis, and download your cleaned dataset."
+)
+st.markdown("---")
+
+st.subheader("Step 1 — Upload Your Survey Data")
+st.caption(
+    "Upload a CSV export from Qualtrics, Google Forms, or any survey platform. "
+    "Each row should represent one participant."
+)
+uploaded_file = st.file_uploader(
+    "Upload Survey CSV",
+    type=["csv"],
+    label_visibility="collapsed",
+)
 if uploaded_file is not None:
-    file_bytes = uploaded_file.getvalue()
-    file_signature = (uploaded_file.name, len(file_bytes), hash(file_bytes))
+    df = pd.read_csv(uploaded_file)
+    if st.session_state.get("uploaded_filename") != uploaded_file.name:
+        st.session_state.df_results = None
+        st.session_state.uploaded_filename = uploaded_file.name
+    st.session_state.df_raw = df
+    n_rows, n_cols = df.shape
+    st.success(f"✅ {uploaded_file.name} loaded — {n_rows} rows, {n_cols} columns")
+    st.dataframe(df.head(), use_container_width=True)
+st.markdown("---")
 
-    if st.session_state.get("uploaded_file_signature") != file_signature:
-        st.session_state.df_raw = pd.read_csv(io.BytesIO(file_bytes))
-        st.session_state.uploaded_file_signature = file_signature
-        if "df_results" in st.session_state:
-            del st.session_state.df_results
-
-if "df_raw" in st.session_state:
-    st.dataframe(st.session_state.df_raw.head())
-
-if "df_raw" in st.session_state:
-    st.subheader("Settings")
-    st.session_state.cutoff = st.slider(
-        "Suspicion Score Cutoff",
-        min_value=0,
-        max_value=100,
-        value=st.session_state.cutoff,
-        help="Responses at or above this score will be flagged.",
-    )
-    st.session_state.qualitative_mode = st.toggle(
-        "Enable Qualitative Analysis Mode",
-        value=st.session_state.qualitative_mode,
-        help=(
-            "Analyzes open-ended text responses for AI-generated content. "
-            "Requires an Anthropic API key."
-        ),
-    )
-
-    if st.session_state.qualitative_mode:
-        st.session_state.api_key = st.text_input(
-            "Anthropic API Key",
-            value=st.session_state.api_key,
-            type="password",
-            help="Your key is used only during this session and never saved.",
+st.subheader("Step 2 — Run Bot Detection")
+st.caption(
+    "The detector analyzes response patterns across all Likert-scale items and assigns "
+    "each participant a suspicion score from 0 (clean) to 100 (highly suspicious). "
+    "Hard flags catch obvious bots; a composite of psychometric subscores handles subtler patterns."
+)
+if st.button("🚀 Run Bot Detection", type="primary"):
+    if st.session_state.get("df_raw") is None:
+        st.warning("⚠️ Please upload a CSV file first.")
+        st.stop()
+    if st.session_state.get("qualitative_mode") and not st.session_state.get("api_key", "").strip():
+        st.warning("⚠️ Please enter your Anthropic API key in the sidebar to use Qualitative Analysis Mode.")
+        st.stop()
+    with st.spinner("Analyzing responses — this may take a moment for large datasets..."):
+        result = run_detection(
+            st.session_state.df_raw,
+            st.session_state.get("cutoff", 75),
         )
+        if st.session_state.get("qualitative_mode"):
+            try:
+                result = run_qualitative(result, st.session_state.api_key)
+            except Exception as e:
+                st.error(
+                    f"Qualitative analysis failed: {e}. Quantitative results are still available."
+                )
+        st.session_state.df_results = result
+    st.success("✅ Analysis complete.")
+st.markdown("---")
 
-if "df_raw" in st.session_state:
-    if st.button("Run Bot Detection"):
-        if "df_raw" not in st.session_state:
-            st.warning("Please upload a CSV file first.")
-            st.stop()
-
-        if st.session_state.qualitative_mode and not st.session_state.get("api_key"):
-            st.warning("Please enter your Anthropic API key to use Qualitative Analysis Mode.")
-            st.stop()
-
-        with st.spinner("Analyzing responses..."):
-            st.session_state.df_results = run_detection(
-                st.session_state.df_raw,
-                st.session_state.cutoff,
-            )
-
-            if st.session_state.qualitative_mode:
-                try:
-                    st.session_state.df_results = run_qualitative(
-                        st.session_state.df_results,
-                        st.session_state.api_key,
-                    )
-                except Exception as e:
-                    st.error(str(e))
-
-if "df_results" in st.session_state:
+if st.session_state.get("df_results") is not None:
+    st.subheader("Step 3 — Review Results")
     df_results = st.session_state.df_results
-
-    st.subheader("Results")
     total = len(df_results)
-    flagged = df_results["is_flagged"].sum()
-    pct = round((flagged / total) * 100, 1) if total > 0 else 0
+    flagged = int(df_results["is_flagged"].sum())
+    pct = round((flagged / total) * 100, 1) if total > 0 else 0.0
+    flagged_df = df_results[df_results["is_flagged"] == True]
+    cleaned_df = df_results[df_results["is_flagged"] == False]
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Participants", total)
-    col2.metric("Flagged", flagged)
-    col3.metric("Flagged %", f"{pct}%")
-
-    st.subheader("Flagged Responses Preview")
-    flagged_df = df_results[df_results["is_flagged"] == True]
-    if len(flagged_df) == 0:
-        st.success("No suspicious responses detected.")
-    else:
-        st.dataframe(flagged_df)
-
-    st.subheader("Downloads")
-
-    full_buffer = io.StringIO()
-    df_results.to_csv(full_buffer, index=False)
-    full_csv_bytes = full_buffer.getvalue().encode("utf-8")
-    st.download_button(
-        label="Download Full Flagged CSV",
-        data=full_csv_bytes,
-        file_name="flagged_responses.csv",
-        mime="text/csv",
+    col2.metric(
+        "Flagged",
+        flagged,
+        delta=f"{pct}% of responses",
+        delta_color="inverse",
+    )
+    col3.metric(
+        "Suspicion Cutoff",
+        f"{st.session_state.get('cutoff', 75)}/100",
     )
 
+    tab1, tab2 = st.tabs(["🚨 Flagged Responses", "📋 Full Results"])
+    with tab1:
+        if len(flagged_df) > 0:
+            st.caption(
+                f"{flagged} response(s) flagged at cutoff {st.session_state.get('cutoff', 75)}."
+            )
+            st.dataframe(flagged_df, use_container_width=True)
+        else:
+            st.success(
+                "✅ No suspicious responses detected at this cutoff. Try lowering the cutoff "
+                "slider to see borderline cases."
+            )
+    with tab2:
+        st.caption(
+            "All participants with bot_score, bot_flags, and is_flagged columns appended to original data."
+        )
+        st.dataframe(df_results, use_container_width=True)
+    st.markdown("---")
+
+if st.session_state.get("df_results") is not None:
+    st.subheader("Step 4 — Download Results")
+    df_results = st.session_state.df_results
     cleaned_df = df_results[df_results["is_flagged"] == False]
-    cleaned_buffer = io.StringIO()
-    cleaned_df.to_csv(cleaned_buffer, index=False)
-    cleaned_csv_bytes = cleaned_buffer.getvalue().encode("utf-8")
-    st.download_button(
-        label="Download Cleaned CSV",
-        data=cleaned_csv_bytes,
-        file_name="cleaned_responses.csv",
-        mime="text/csv",
-    )
+    dl_col1, dl_col2 = st.columns(2)
+    with dl_col1:
+        st.caption(
+            "All rows with suspicion scores and flag labels appended. Use this to review borderline cases."
+        )
+        st.download_button(
+            label="📥 Download Full Flagged CSV",
+            data=df_results.to_csv(index=False).encode("utf-8"),
+            file_name="flagged_responses.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+    with dl_col2:
+        st.caption(
+            "Only rows below the suspicion cutoff. Ready to use directly in your statistical analysis."
+        )
+        st.download_button(
+            label="✅ Download Cleaned CSV",
+            data=cleaned_df.to_csv(index=False).encode("utf-8"),
+            file_name="cleaned_responses.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
