@@ -1,5 +1,13 @@
 # CHANGELOG.md
 
+## Slice 2B — Detection Engine V2
+- Replaced binary detection engine with continuous subscore algorithm
+- Added hard flags: exact_duplicate, longstring_absolute (auto-score 100)
+- Added subscores: longstring, irv, mahalanobis, even_odd, entropy, speeder, missing
+- All 6 known bot rows flagged, all 9 human rows clean on test_survey.csv
+- test_survey.csv and test_slice2b.py created by Claude Code (not Codex)
+- detector.py required no changes after Codex generation
+
 ## Slice 2 — Detection Engine
 - Implemented get_likert_columns(), get_text_columns(), normalize_score() in utils.py
 - Implemented all seven check functions and run_detection() in detector.py
