@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## Slice 4 — Qualitative Analysis Mode
+- Implemented run_qualitative() in qualitative.py
+- Auto-detects text columns via utils.get_text_columns()
+- Batches responses (max 20) to claude-sonnet-4-20250514
+- Returns ai_text_score column (int 0–100) averaged across text columns
+- AuthenticationError explicitly re-raised before general except block
+  so app.py catches and displays it correctly (deviation from spec —
+  improvement over bare except Exception)
+- All three manual test steps passing
+
 ## Slice 3 — Streamlit UI
 - Built complete polished UI in app.py
 - Sidebar: settings panel, about expander, cutoff slider,

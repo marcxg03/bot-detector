@@ -1,5 +1,16 @@
 # KNOWN_ISSUES.md
 
+## Slice 4
+🟢 Low — Empty/null text responses sent to Claude as empty strings
+   rather than skipped. Claude scores them low, which is acceptable
+   but semantically meaningless. Future fix: skip empty strings and
+   inject score of 0 directly.
+🟢 Low — Model ID claude-sonnet-4-20250514 hardcoded at call site.
+   Extract to MODULE_MODEL constant for easier future maintenance.
+🟢 Low — ai_text_score presence in downloads depends on qualitative
+   mode being active at run time. Verify column appears in both CSVs
+   when qualitative mode is on.
+
 ## Slice 3
 🟢 Low — Flagged Responses tab shows original DataFrame row index
    numbers (e.g. 2, 4, 6) not sequential 1–N. Cosmetically minor,

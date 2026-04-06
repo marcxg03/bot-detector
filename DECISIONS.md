@@ -1,5 +1,16 @@
 # DECISIONS.md
 
+## Slice 4
+- anthropic.AuthenticationError explicitly re-raised before general
+  except Exception fallback — prevents auth errors being silently
+  swallowed and returning 50. Standard Python exception ordering fix.
+- Model hardcoded as claude-sonnet-4-20250514 at call site — should be
+  extracted to a module-level constant in a future pass for easier
+  maintenance when model is deprecated
+- Empty strings sent to API as-is — Claude scores them low (human-like)
+  which is an acceptable approximation; skipping empty responses and
+  injecting 0 is a future improvement
+
 ## Slice 3
 - Sidebar used for settings to keep main area clean and focused
   on the step-by-step workflow
