@@ -1,5 +1,14 @@
 # CHANGELOG.md
 
+## Slice 4 — Qualitative Mode (verified with real API key)
+- ai_text_score column confirmed present in Flagged Responses tab
+- Known AI rows scoring 85–100 on ai_text_score
+- Known human rows not shown in flagged tab (correct)
+- Invalid API key correctly shows st.error() with quantitative
+  results still available
+- Full end-to-end pipeline verified: bot_score + ai_text_score
+  both present and correct in output
+
 ## Slice 4 — Qualitative Analysis Mode
 - Implemented run_qualitative() in qualitative.py
 - Auto-detects text columns via utils.get_text_columns()
