@@ -1,0 +1,12 @@
+output/
+logs/
+tmp_logs/
+tmp_output/
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+.DS_Store
+.claude/
+test_slice_*.py
