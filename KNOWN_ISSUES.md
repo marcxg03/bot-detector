@@ -1,12 +1,21 @@
 # KNOWN_ISSUES.md
 
+## Slice 2C
+✅ Resolved — entropy flag label noise on human rows (threshold → 0.70)
+✅ Resolved — Mahalanobis centroid polluted by bot rows (Pass 1 filter)
+🟢 Low — even_odd flag label appears on R008 and R015 due to negatively
+   correlated even/odd item halves. Scores correct, labels cosmetically
+   noisy. Accepted behavior for now.
+
 ## Slice 2B
 🟡 Medium — entropy subscore fires on human rows with uniform response
    distributions, producing noisy flag labels even at low bot_scores.
    Consider raising flag label threshold from 0.5 to 0.7 in a future pass.
+   → Resolved in Slice 2C
 🟡 Medium — Mahalanobis centroid is computed on all rows including bots,
    which skews the reference matrix and can produce spurious flag labels
    on human rows. Scores remain correct but labels are cosmetically noisy.
+   → Resolved in Slice 2C
 🟢 Low — test_survey.csv bots all use 100% straight-lining so hard flags
    fire before composite runs. Real-world bots with subtler patterns will
    exercise the composite path more heavily; monitor in production use.

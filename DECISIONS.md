@@ -1,5 +1,15 @@
 # DECISIONS.md
 
+## Slice 2C
+- Flag label threshold set to 0.70 (not 0.65 as originally specced)
+  Reason: humans with perfectly uniform 1–7 distributions produce
+  entropy subscore of exactly 0.667, which sits above 0.65.
+  Threshold raised to 0.70 to clear this edge case cleanly.
+- even_odd labels on R008 and R015 are accepted — these rows have
+  genuinely negatively correlated even/odd halves (r ≈ -0.48), which
+  is an unusual but valid human response pattern. Not a false positive
+  in the scoring sense — bot_score remains well below 75.
+
 ## Slice 2B
 - reverse_consist excluded — requires pre-defined reverse-scored item pairs
   that vary per instrument; deferred to future enhancement
