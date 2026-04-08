@@ -108,7 +108,7 @@ def run_detection(
     df: pd.DataFrame,
     cutoff: int = 95,
     B: int = DEFAULT_B,
-    likert_cols: list | None = None,
+    likert_cols=None,
 ) -> pd.DataFrame:
     """
     Run L1P1 bot detection as described in:
