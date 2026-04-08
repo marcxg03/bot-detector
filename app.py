@@ -1,3 +1,5 @@
+import io
+
 import streamlit as st
 import pandas as pd
 
@@ -104,7 +106,28 @@ uploaded_file = st.file_uploader(
     label_visibility="collapsed",
 )
 if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
+    raw_bytes = uploaded_file.read()
+
+    # First pass: peek at first 3 rows to detect Qualtrics format
+    df_peek = pd.read_csv(io.BytesIO(raw_bytes), nrows=3)
+
+    # Qualtrics adds two junk rows after the header:
+    #   row 0: human-readable question labels
+    #   row 1: ImportId metadata (e.g. {"ImportId":"QID23_113"})
+    is_qualtrics = False
+    if len(df_peek) >= 2:
+        row1_str = df_peek.iloc[1].astype(str)
+        row0_str = df_peek.iloc[0].astype(str)
+        if (row1_str.str.contains("ImportId", na=False).any() or
+                row0_str.str.contains("ImportId", na=False).any()):
+            is_qualtrics = True
+
+    # Second pass: read with correct skiprows
+    if is_qualtrics:
+        df = pd.read_csv(io.BytesIO(raw_bytes), skiprows=[1, 2])
+    else:
+        df = pd.read_csv(io.BytesIO(raw_bytes))
+
     if st.session_state.get("uploaded_filename") != uploaded_file.name:
         st.session_state.df_results = None
         st.session_state.uploaded_filename = uploaded_file.name

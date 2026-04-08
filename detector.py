@@ -137,6 +137,14 @@ def run_detection(
         return result
 
     likert_df = df[likert_cols].apply(pd.to_numeric, errors="coerce")
+
+    # Drop rows where all Likert values are non-numeric — catches Qualtrics
+    # label/metadata rows that slipped through app.py detection.
+    numeric_mask = likert_df.notna().any(axis=1)
+    if not numeric_mask.all():
+        df = df[numeric_mask].reset_index(drop=True)
+        likert_df = likert_df[numeric_mask].reset_index(drop=True)
+
     for col in likert_df.columns:
         median = likert_df[col].median()
         likert_df[col] = likert_df[col].fillna(median if not np.isnan(median) else 4.0)

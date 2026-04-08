@@ -1,5 +1,14 @@
 # DECISIONS.md
 
+## Qualtrics Format Fix
+- Two-pass read chosen over skiprows=[1,2] hardcode: detection-first
+  approach means the tool works on both Qualtrics and standard CSVs
+  without the researcher needing to know which format they have.
+- ImportId string chosen as Qualtrics marker: present in every
+  Qualtrics export in the metadata row, reliable across versions.
+- io.BytesIO(raw_bytes) used instead of seek(): more reliable across
+  Streamlit versions and file-like object implementations.
+
 ## Slice 2D
 - L1P1 chosen over custom heuristic engine: peer-reviewed in Behavior
   Research Methods (IF ~7), 95% sensitivity guarantee, model-agnostic

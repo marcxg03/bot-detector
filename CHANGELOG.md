@@ -1,5 +1,14 @@
 # CHANGELOG.md
 
+## Qualtrics Format Fix (post Slice 2D)
+- app.py: Added two-pass CSV read to auto-detect and skip Qualtrics
+  extra header rows (question labels + ImportId metadata). Uses
+  io.BytesIO(raw_bytes) pattern for reliable re-read without seek().
+- detector.py: Added defensive numeric_mask guard to drop any
+  residual label rows that slipped through app.py detection.
+- Participant count now correct (350, not 352 including junk rows).
+- Standard non-Qualtrics CSVs unaffected.
+
 ## Slice 2D — L1P1 Detection Engine (Vectorized + Parallel)
 - Replaced heuristic composite engine with L1P1 (Ilagan & Falk, 2024)
 - Implements permutation test with leave-one-out anchor computation

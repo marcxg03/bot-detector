@@ -1,5 +1,14 @@
 # KNOWN_ISSUES.md
 
+## Qualtrics Format Fix
+🟢 Low — If a legitimate survey response cell contains the string
+   "ImportId", the tool will incorrectly treat a standard CSV as
+   Qualtrics format and skip rows 1 and 2. Extremely unlikely in
+   practice.
+🟢 Low — Older Qualtrics export formats that don't include ImportId
+   metadata may not be auto-detected. Fix 2 in detector.py still
+   protects against label rows corrupting Likert detection.
+
 ## Slice 2D
 🟢 Low — python3 in shell PATH may not resolve to venv interpreter.
    Fix: always activate venv before running (source venv/bin/activate)
