@@ -1,5 +1,15 @@
 # DECISIONS.md
 
+## Slice 2D
+- L1P1 chosen over custom heuristic engine: peer-reviewed in Behavior
+  Research Methods (IF ~7), 95% sensitivity guarantee, model-agnostic
+- B=200 permutations: paper default; 1000 more replicable but unnecessary
+- Default cutoff changed from 75 to 95 (maps to alpha=0.05 per paper)
+- joblib loky backend chosen over threading: numpy releases GIL but
+  loky is most robust for numerical workloads on macOS
+- _process_participant defined at module level (not nested): required
+  for joblib pickling
+
 ## Slice 4
 - anthropic.AuthenticationError explicitly re-raised before general
   except Exception fallback — prevents auth errors being silently

@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## Slice 2D — L1P1 Detection Engine (Vectorized + Parallel)
+- Replaced heuristic composite engine with L1P1 (Ilagan & Falk, 2024)
+- Implements permutation test with leave-one-out anchor computation
+- Vectorized NRI computation using np.einsum across all 200 permutations
+- Parallel participant processing via joblib Parallel(n_jobs=-1)
+- Output: bot_score (0-100), l1p1_pvalue (float), bot_flags, is_flagged
+- All 5 automated tests passing (10/10 bots detected in synthetic test)
+- Real dataset validation pending local path setup
+- python3 PATH resolved to wrong interpreter — fixed via venv
+
 ## Slice 4 — Qualitative Mode (verified with real API key)
 - ai_text_score column confirmed present in Flagged Responses tab
 - Known AI rows scoring 85–100 on ai_text_score

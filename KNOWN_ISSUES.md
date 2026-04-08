@@ -1,5 +1,14 @@
 # KNOWN_ISSUES.md
 
+## Slice 2D
+🟢 Low — python3 in shell PATH may not resolve to venv interpreter.
+   Fix: always activate venv before running (source venv/bin/activate)
+🟢 Low — Real dataset runtime not yet benchmarked locally. Expected
+   30-90s on MacBook with 8 cores at B=200 permutations.
+🟢 Low — L1P1 exchangeability assumption may not hold for partially
+   careless responders (bots on some items only). Known limitation
+   documented in Ilagan & Falk (2024).
+
 ## Slice 4
 🟢 Low — Empty/null text responses sent to Claude as empty strings
    rather than skipped. Claude scores them low, which is acceptable

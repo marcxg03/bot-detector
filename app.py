@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 if "cutoff" not in st.session_state:
-    st.session_state.cutoff = 75
+    st.session_state.cutoff = 95
 
 if "qualitative_mode" not in st.session_state:
     st.session_state.qualitative_mode = False
@@ -51,12 +51,13 @@ cutoff = st.sidebar.slider(
     "Suspicion Score Cutoff",
     min_value=0,
     max_value=100,
-    value=75,
+    value=95,
     label_visibility="collapsed",
 )
 st.sidebar.caption(
-    "Responses at or above this score are flagged as suspicious. Lower = stricter. "
-    "Default 75 works for most datasets."
+    "Maps to statistical sensitivity: score 95 = alpha 0.05 "
+    "(95% sensitivity, recommended by Ilagan & Falk, 2024). "
+    "Lower score = more strict."
 )
 st.session_state.cutoff = cutoff
 
@@ -126,10 +127,13 @@ if st.button("🚀 Run Bot Detection", type="primary"):
     if st.session_state.get("qualitative_mode") and not st.session_state.get("api_key", "").strip():
         st.warning("⚠️ Please enter your Anthropic API key in the sidebar to use Qualitative Analysis Mode.")
         st.stop()
-    with st.spinner("Analyzing responses — this may take a moment for large datasets..."):
+    with st.spinner(
+        "Running L1P1 bot detection — analyzing response patterns "
+        "across all participants. Large datasets may take 1-2 minutes..."
+    ):
         result = run_detection(
             st.session_state.df_raw,
-            st.session_state.get("cutoff", 75),
+            st.session_state.get("cutoff", 95),
         )
         if st.session_state.get("qualitative_mode"):
             try:
@@ -161,14 +165,14 @@ if st.session_state.get("df_results") is not None:
     )
     col3.metric(
         "Suspicion Cutoff",
-        f"{st.session_state.get('cutoff', 75)}/100",
+        f"{st.session_state.get('cutoff', 95)}/100",
     )
 
     tab1, tab2 = st.tabs(["🚨 Flagged Responses", "📋 Full Results"])
     with tab1:
         if len(flagged_df) > 0:
             st.caption(
-                f"{flagged} response(s) flagged at cutoff {st.session_state.get('cutoff', 75)}."
+                f"{flagged} response(s) flagged at cutoff {st.session_state.get('cutoff', 95)}."
             )
             st.dataframe(flagged_df, use_container_width=True)
         else:
