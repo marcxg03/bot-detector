@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## Column Selection Feature + Likert Detection Fix
+- utils.py: Rewrote get_likert_columns() with 6 strict rules —
+  numeric coercion, integer-only values, 1-7 range, >=2 unique values,
+  <8 unique values, metadata name exclusion (29 blocked substrings).
+  Added get_likert_columns_strict(df, max_value) for 1-5 scale support.
+- detector.py: Added likert_cols parameter to run_detection() —
+  researcher-selected columns used when provided, auto-detection as
+  fallback. Strengthened Qualtrics row guard to >=50% numeric threshold.
+- app.py: Added Step 1.5 — Column Selection with Auto/Manual modes.
+  Auto shows detected columns in expandable list. Manual shows
+  multiselect pre-populated with auto-detected defaults. likert_cols
+  stored in session state, reset on new file upload.
+
 ## Qualtrics Format Fix (post Slice 2D)
 - app.py: Added two-pass CSV read to auto-detect and skip Qualtrics
   extra header rows (question labels + ImportId metadata). Uses

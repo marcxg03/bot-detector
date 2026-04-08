@@ -3,6 +3,7 @@ import io
 import streamlit as st
 import pandas as pd
 
+import utils
 from detector import run_detection
 from qualitative import run_qualitative
 
@@ -30,6 +31,9 @@ if "df_results" not in st.session_state:
 
 if "uploaded_filename" not in st.session_state:
     st.session_state.uploaded_filename = None
+
+if "likert_cols" not in st.session_state:
+    st.session_state.likert_cols = None
 
 st.sidebar.title("⚙️ Settings")
 
@@ -130,12 +134,70 @@ if uploaded_file is not None:
 
     if st.session_state.get("uploaded_filename") != uploaded_file.name:
         st.session_state.df_results = None
+        st.session_state.likert_cols = None
         st.session_state.uploaded_filename = uploaded_file.name
     st.session_state.df_raw = df
     n_rows, n_cols = df.shape
     st.success(f"✅ {uploaded_file.name} loaded — {n_rows} rows, {n_cols} columns")
     st.dataframe(df.head(), use_container_width=True)
 st.markdown("---")
+
+if st.session_state.get("df_raw") is not None:
+    _df = st.session_state.df_raw
+    st.subheader("Step 1.5 — Select Likert-Scale Columns")
+    st.caption(
+        "The detector needs to know which columns contain Likert-scale "
+        "responses. You can let the tool detect them automatically, or "
+        "select them manually if you know your survey structure."
+    )
+
+    mode = st.radio(
+        "Column selection mode",
+        options=["Automatic", "Manual"],
+        horizontal=True,
+        help=(
+            "Automatic uses a heuristic (values 1–7, fewer than 8 unique values, "
+            "no metadata keywords). Manual lets you choose exactly which columns to analyze."
+        ),
+    )
+
+    if mode == "Automatic":
+        auto_cols = utils.get_likert_columns(_df)
+        if len(auto_cols) == 0:
+            st.warning(
+                "⚠️ No Likert columns detected automatically. Try Manual mode "
+                "to select columns yourself."
+            )
+        else:
+            st.success(f"✅ {len(auto_cols)} Likert columns detected automatically.")
+        with st.expander(f"View detected columns ({len(auto_cols)})"):
+            st.write(auto_cols)
+        st.session_state.likert_cols = auto_cols
+    else:
+        st.caption(
+            "Select all columns that contain Likert-scale responses "
+            "(e.g. 1–5 or 1–7 scale items). Tip: auto-detected columns are pre-selected."
+        )
+        auto_cols = utils.get_likert_columns(_df)
+        candidate_cols = [
+            c for c in _df.columns
+            if pd.to_numeric(_df[c], errors="coerce").notna().sum() > len(_df) * 0.5
+        ]
+        selected = st.multiselect(
+            "Choose Likert columns",
+            options=candidate_cols,
+            default=[c for c in auto_cols if c in candidate_cols],
+            help="Select all columns containing 1–5 or 1–7 scale responses.",
+        )
+        if len(selected) == 0:
+            st.warning(
+                "⚠️ No columns selected. Please select at least one Likert column to run detection."
+            )
+        else:
+            st.success(f"✅ {len(selected)} columns selected.")
+        st.session_state.likert_cols = selected
+
+    st.markdown("---")
 
 st.subheader("Step 2 — Run Bot Detection")
 st.caption(
@@ -157,6 +219,7 @@ if st.button("🚀 Run Bot Detection", type="primary"):
         result = run_detection(
             st.session_state.df_raw,
             st.session_state.get("cutoff", 95),
+            likert_cols=st.session_state.get("likert_cols") or None,
         )
         if st.session_state.get("qualitative_mode"):
             try:

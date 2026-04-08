@@ -1,5 +1,16 @@
 # KNOWN_ISSUES.md
 
+## Column Selection Feature
+🟢 Low — "num" in _METADATA_TERMS may over-exclude columns named
+   "num_items", "enumeration" etc. Trim if real datasets affected.
+🟢 Low — "id" substring exclusion may block columns like "valid",
+   "fluid", "residual". Monitor on real datasets.
+🟢 Low — Step 2 sidebar caption still references old composite
+   engine. Should reference L1P1 in a future pass.
+🟢 Low — Manual mode multiselect resets to auto-detected defaults
+   when researcher switches back to Auto then Manual. Expected
+   Streamlit behavior but may surprise users.
+
 ## Qualtrics Format Fix
 🟢 Low — If a legitimate survey response cell contains the string
    "ImportId", the tool will incorrectly treat a standard CSV as

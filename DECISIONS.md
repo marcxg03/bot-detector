@@ -1,5 +1,18 @@
 # DECISIONS.md
 
+## Column Selection Feature
+- Auto/Manual radio chosen over always-manual: researchers uploading
+  clean standard CSVs should not be forced to select columns. Auto
+  works for most cases; Manual is the escape hatch.
+- _METADATA_TERMS exclusion list chosen over regex word boundaries:
+  simpler to maintain, covers the main offenders. May over-exclude
+  some column names (e.g. "num_items") — monitored in production use.
+- likert_cols=None fallback in run_detection(): preserves backward
+  compatibility with existing test scripts and Claude Code sessions.
+- "id" substring exclusion is broad but intentional: survey platforms
+  always use "Id" in metadata column names (participantId, ResponseId,
+  assignmentId). Risk of over-exclusion is lower than under-exclusion.
+
 ## Qualtrics Format Fix
 - Two-pass read chosen over skiprows=[1,2] hardcode: detection-first
   approach means the tool works on both Qualtrics and standard CSVs

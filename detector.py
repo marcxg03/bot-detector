@@ -105,7 +105,10 @@ def _process_participant(
 
 
 def run_detection(
-    df: pd.DataFrame, cutoff: int = 95, B: int = DEFAULT_B
+    df: pd.DataFrame,
+    cutoff: int = 95,
+    B: int = DEFAULT_B,
+    likert_cols: list | None = None,
 ) -> pd.DataFrame:
     """
     Run L1P1 bot detection as described in:
@@ -116,8 +119,14 @@ def run_detection(
 
     The UI cutoff maps to alpha = 1 - (cutoff / 100). The paper's
     recommended alpha=0.05 corresponds to cutoff=95.
+
+    Args:
+        likert_cols: If provided, use these columns instead of running
+                     automatic detection via utils.get_likert_columns().
+                     Allows researcher-selected columns from the UI.
     """
-    likert_cols = utils.get_likert_columns(df)
+    if likert_cols is None:
+        likert_cols = utils.get_likert_columns(df)
     alpha = 1.0 - (cutoff / 100.0)
     timing_col = next(
         (
@@ -138,9 +147,10 @@ def run_detection(
 
     likert_df = df[likert_cols].apply(pd.to_numeric, errors="coerce")
 
-    # Drop rows where all Likert values are non-numeric — catches Qualtrics
-    # label/metadata rows that slipped through app.py detection.
-    numeric_mask = likert_df.notna().any(axis=1)
+    # Drop rows where fewer than 50% of Likert columns are numeric.
+    # Catches Qualtrics label/metadata rows that slipped through app.py.
+    numeric_counts = likert_df.notna().sum(axis=1)
+    numeric_mask = numeric_counts >= (len(likert_cols) * 0.5)
     if not numeric_mask.all():
         df = df[numeric_mask].reset_index(drop=True)
         likert_df = likert_df[numeric_mask].reset_index(drop=True)
