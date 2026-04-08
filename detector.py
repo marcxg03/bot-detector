@@ -100,8 +100,63 @@ def _process_participant(
     pval = float(np.mean(all_dists >= dist_orig))
 
     score = int(round((1 - pval) * 100))
-    is_flag = pval >= alpha
+    is_flag = pval <= alpha
     return (pval, score, is_flag)
+
+
+def _compute_flag_reasons(row_values, likert_cols, all_values, timing_val=None):
+    """
+    Generate human-readable flag reasons for an L1P1-flagged participant.
+    Called after the permutation test for rows where is_flagged=True.
+    Defined at module level (not nested) for consistency with _process_participant.
+
+    Returns a comma-separated string of reasons, always ending with
+    'l1p1_permutation_test' to indicate the statistical basis.
+    """
+    reasons = []
+
+    # 1. Low variance relative to the rest of the sample
+    sd = np.std(row_values)
+    all_sds = np.std(all_values, axis=1)
+    percentile_10 = np.percentile(all_sds, 10)
+    if sd < percentile_10:
+        reasons.append(f"low_variance (SD={sd:.2f}, bottom 10%)")
+
+    # 2. Long consecutive run of the same response value
+    max_run = 1
+    current_run = 1
+    for i in range(1, len(row_values)):
+        if row_values[i] == row_values[i - 1]:
+            current_run += 1
+            max_run = max(max_run, current_run)
+        else:
+            current_run = 1
+    run_pct = max_run / len(row_values) * 100
+    if max_run >= 5:
+        reasons.append(
+            f"longstring_run (longest_run={max_run}, {run_pct:.0f}% of items)"
+        )
+
+    # 3. Range avoidance — uses only 1-2 distinct values across all items
+    n_unique = len(np.unique(row_values))
+    if n_unique <= 2:
+        reasons.append(f"range_avoidance (only {n_unique} unique value(s) used)")
+
+    # 4. Extreme responding — >= 80% of responses at scale endpoints
+    scale_min = int(all_values.min())
+    scale_max = int(all_values.max())
+    extreme_pct = np.mean(
+        (row_values == scale_min) | (row_values == scale_max)
+    ) * 100
+    if extreme_pct >= 80:
+        reasons.append(
+            f"extreme_responding ({extreme_pct:.0f}% at endpoints {scale_min}/{scale_max})"
+        )
+
+    # Always append the statistical basis
+    reasons.append("l1p1_permutation_test")
+
+    return ", ".join(reasons)
 
 
 def run_detection(
@@ -147,10 +202,12 @@ def run_detection(
 
     likert_df = df[likert_cols].apply(pd.to_numeric, errors="coerce")
 
-    # Drop rows where fewer than 50% of Likert columns are numeric.
+    # Drop rows where fewer than 10% of Likert columns are numeric.
     # Catches Qualtrics label/metadata rows that slipped through app.py.
+    # Threshold kept low so legitimate participants with many skipped
+    # questions are not removed.
     numeric_counts = likert_df.notna().sum(axis=1)
-    numeric_mask = numeric_counts >= (len(likert_cols) * 0.5)
+    numeric_mask = numeric_counts >= (len(likert_cols) * 0.1)
     if not numeric_mask.all():
         df = df[numeric_mask].reset_index(drop=True)
         likert_df = likert_df[numeric_mask].reset_index(drop=True)
@@ -203,6 +260,13 @@ def run_detection(
             pvalues[idx] = pval
             bot_scores[idx] = score
             flagged_arr[idx] = is_flag
+            if is_flag and flags_list[idx] == "":
+                flags_list[idx] = _compute_flag_reasons(
+                    clean_matrix[pos],
+                    likert_cols,
+                    clean_matrix,
+                    timing_val=df.iloc[idx][timing_col] if timing_col else None,
+                )
 
     result = df.copy()
     result["bot_score"] = bot_scores

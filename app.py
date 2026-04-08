@@ -146,56 +146,95 @@ if st.session_state.get("df_raw") is not None:
     _df = st.session_state.df_raw
     st.subheader("Step 1.5 — Select Likert-Scale Columns")
     st.caption(
-        "The detector needs to know which columns contain Likert-scale "
-        "responses. You can let the tool detect them automatically, or "
-        "select them manually if you know your survey structure."
+        "The detector analyzes Likert-scale response columns. "
+        "Auto mode detects them from your data. Manual mode lets "
+        "you review and adjust the selection."
     )
 
-    mode = st.radio(
-        "Column selection mode",
-        options=["Automatic", "Manual"],
-        horizontal=True,
-        help=(
-            "Automatic uses a heuristic (values 1–7, fewer than 8 unique values, "
-            "no metadata keywords). Manual lets you choose exactly which columns to analyze."
-        ),
-    )
+    tab_auto, tab_manual = st.tabs(["Automatic Detection", "Manual Selection"])
 
-    if mode == "Automatic":
+    with tab_auto:
         auto_cols = utils.get_likert_columns(_df)
         if len(auto_cols) == 0:
             st.warning(
-                "⚠️ No Likert columns detected automatically. Try Manual mode "
-                "to select columns yourself."
+                "No Likert columns detected automatically. "
+                "Switch to Manual Selection to choose columns yourself."
             )
+            st.session_state.likert_cols = []
         else:
-            st.success(f"✅ {len(auto_cols)} Likert columns detected automatically.")
-        with st.expander(f"View detected columns ({len(auto_cols)})"):
-            st.write(auto_cols)
-        st.session_state.likert_cols = auto_cols
-    else:
+            st.success(f"✅ {len(auto_cols)} Likert columns detected.")
+            st.caption(
+                "These columns have numeric values in the 1–7 range with "
+                "fewer than 8 unique values. Non-survey columns (IDs, "
+                "timestamps, metadata) are excluded automatically."
+            )
+            summary_rows = []
+            for col in auto_cols:
+                vals = pd.to_numeric(_df[col], errors="coerce").dropna()
+                summary_rows.append({
+                    "Column": col,
+                    "Min": int(vals.min()) if len(vals) > 0 else "-",
+                    "Max": int(vals.max()) if len(vals) > 0 else "-",
+                    "Unique Values": int(vals.nunique()) if len(vals) > 0 else "-",
+                    "Non-null Responses": int(vals.notna().sum()),
+                })
+            st.dataframe(
+                pd.DataFrame(summary_rows),
+                use_container_width=True,
+                height=300,
+            )
+            st.session_state.likert_cols = auto_cols
+            st.session_state.column_mode = "auto"
+
+    with tab_manual:
         st.caption(
-            "Select all columns that contain Likert-scale responses "
-            "(e.g. 1–5 or 1–7 scale items). Tip: auto-detected columns are pre-selected."
+            "Review and adjust which columns to include. "
+            "Auto-detected columns are pre-checked. "
+            "Deselect any columns that are not Likert-scale items."
         )
-        auto_cols = utils.get_likert_columns(_df)
-        candidate_cols = [
-            c for c in _df.columns
-            if pd.to_numeric(_df[c], errors="coerce").notna().sum() > len(_df) * 0.5
-        ]
-        selected = st.multiselect(
-            "Choose Likert columns",
-            options=candidate_cols,
-            default=[c for c in auto_cols if c in candidate_cols],
-            help="Select all columns containing 1–5 or 1–7 scale responses.",
-        )
-        if len(selected) == 0:
-            st.warning(
-                "⚠️ No columns selected. Please select at least one Likert column to run detection."
-            )
+        auto_cols_for_manual = utils.get_likert_columns(_df)
+        candidate_cols = []
+        for col in _df.columns:
+            vals = pd.to_numeric(_df[col], errors="coerce").dropna()
+            if len(vals) > len(_df) * 0.3:
+                candidate_cols.append({
+                    "Include": col in auto_cols_for_manual,
+                    "Column": col,
+                    "Sample Values": str(sorted(vals.unique()[:5].tolist())),
+                    "Min": float(vals.min()),
+                    "Max": float(vals.max()),
+                    "Unique": int(vals.nunique()),
+                })
+        if len(candidate_cols) == 0:
+            st.warning("No numeric columns found in this CSV.")
         else:
-            st.success(f"✅ {len(selected)} columns selected.")
-        st.session_state.likert_cols = selected
+            cand_df = pd.DataFrame(candidate_cols)
+            edited_df = st.data_editor(
+                cand_df,
+                column_config={
+                    "Include": st.column_config.CheckboxColumn(
+                        "Include",
+                        help="Check to include this column in bot detection",
+                        default=False,
+                    ),
+                    "Column": st.column_config.TextColumn("Column Name"),
+                    "Sample Values": st.column_config.TextColumn("Sample Values"),
+                    "Min": st.column_config.NumberColumn("Min", format="%.0f"),
+                    "Max": st.column_config.NumberColumn("Max", format="%.0f"),
+                    "Unique": st.column_config.NumberColumn("# Unique"),
+                },
+                disabled=["Column", "Sample Values", "Min", "Max", "Unique"],
+                use_container_width=True,
+                height=400,
+                hide_index=True,
+            )
+            selected_manual = edited_df[edited_df["Include"]]["Column"].tolist()
+            if len(selected_manual) == 0:
+                st.warning("No columns selected. Please check at least one column.")
+            else:
+                st.success(f"✅ {len(selected_manual)} columns selected.")
+            st.session_state.likert_cols = selected_manual
+            st.session_state.column_mode = "manual"
 
     st.markdown("---")
 
