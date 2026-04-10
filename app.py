@@ -71,34 +71,45 @@ if detection_method == "L1P1 (Statistical — WIP)":
         "against Classic method before use in analysis."
     )
 
-# Reset cutoff default when method changes
-if st.session_state.get("detection_method") != detection_method:
-    st.session_state.detection_method = detection_method
-    st.session_state.cutoff = 95 if detection_method == "L1P1 (Statistical — WIP)" else 75
-
 st.sidebar.markdown("---")
-st.sidebar.subheader("Suspicion Score Cutoff")
-if detection_method == "L1P1 (Statistical — WIP)":
-    cutoff_caption = (
+
+if detection_method == "Classic (Heuristic)":
+    st.sidebar.subheader("Speeder Threshold")
+    speeder_threshold = st.sidebar.number_input(
+        "Speeder Threshold (seconds)",
+        min_value=30,
+        max_value=600,
+        value=st.session_state.get("speeder_threshold", 120),
+        step=10,
+        help=(
+            "Participants who completed the survey faster than this "
+            "threshold will be flagged as speeders. Default 120s "
+            "(2 minutes). Adjust based on your survey length."
+        ),
+    )
+    st.session_state.speeder_threshold = speeder_threshold
+    st.sidebar.caption(
+        "All participants triggering any check are flagged. "
+        "Your lab manager reviews bot_flags and makes final "
+        "exclusion decisions."
+    )
+    cutoff = 75  # unused by heuristic; kept so downstream references don't break
+else:
+    st.sidebar.subheader("Suspicion Score Cutoff")
+    cutoff = st.sidebar.slider(
+        "Suspicion Score Cutoff",
+        min_value=0,
+        max_value=100,
+        value=st.session_state.get("cutoff", 95),
+        label_visibility="collapsed",
+    )
+    st.sidebar.caption(
         "Maps to statistical sensitivity: score 95 = alpha 0.05 "
         "(95% sensitivity, recommended by Ilagan & Falk, 2024). "
         "Lower score = more strict."
     )
-else:
-    cutoff_caption = (
-        "Responses at or above this score are flagged as bots. "
-        "Default 75 recommended for heuristic method. Lower score = more strict."
-    )
-
-cutoff = st.sidebar.slider(
-    "Suspicion Score Cutoff",
-    min_value=0,
-    max_value=100,
-    value=st.session_state.get("cutoff", 95),
-    label_visibility="collapsed",
-)
-st.sidebar.caption(cutoff_caption)
-st.session_state.cutoff = cutoff
+    st.session_state.cutoff = cutoff
+    speeder_threshold = st.session_state.get("speeder_threshold", 120)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Qualitative Analysis Mode")
@@ -319,8 +330,9 @@ if st.button("🚀 Run Bot Detection", type="primary"):
         if detection_method == "Classic (Heuristic)":
             result = run_detection_heuristic(
                 st.session_state.df_raw,
-                cutoff=st.session_state.get("cutoff", 75),
+                cutoff=75,
                 likert_cols=st.session_state.get("likert_cols") or None,
+                speeder_threshold=st.session_state.get("speeder_threshold", 120),
             )
         else:
             result = run_detection(
@@ -360,6 +372,13 @@ if st.session_state.get("df_results") is not None:
         "Suspicion Cutoff",
         f"{st.session_state.get('cutoff', 95)}/100",
     )
+
+    if detection_method == "Classic (Heuristic)":
+        st.caption(
+            "Classic mode: any flagged check = excluded. "
+            "Review the bot_flags column for specific reasons. "
+            "bot_score shows the number of checks triggered per participant."
+        )
 
     with st.expander("📖 Flag Definitions — what do these flags mean?", expanded=False):
 

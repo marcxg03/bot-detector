@@ -43,29 +43,41 @@ if detection_method == "L1P1 (Statistical — WIP)":
         "⚠️ L1P1 is still being validated on FE study data. Results should be compared "
         "against Classic method before use in analysis."
     )
-    cutoff_default = 95
-    cutoff_caption = "Maps to alpha: score 95 = 95% sensitivity (Ilagan & Falk, 2024)."
-else:
-    cutoff_default = 75
-    cutoff_caption = (
-        "Responses at or above this score are flagged as bots. "
-        "Default 75 recommended for this instrument."
+
+st.sidebar.markdown("---")
+
+if detection_method == "Classic (Heuristic)":
+    st.sidebar.subheader("Speeder Threshold")
+    speeder_threshold = st.sidebar.number_input(
+        "Speeder Threshold (seconds)",
+        min_value=30,
+        max_value=600,
+        value=st.session_state.get("fe_speeder_threshold", 120),
+        step=10,
+        help=(
+            "Participants completing faster than this are flagged "
+            "as speeders. Default 120s. Adjust based on survey length."
+        ),
     )
-
-# Reset cutoff when method changes
-if st.session_state.get("fe_detection_method") != detection_method:
-    st.session_state.fe_detection_method = detection_method
-    st.session_state.fe_cutoff = cutoff_default
-
-cutoff = st.sidebar.slider(
-    "Suspicion Score Cutoff",
-    min_value=0,
-    max_value=100,
-    value=st.session_state.get("fe_cutoff", cutoff_default),
-    label_visibility="collapsed",
-)
-st.session_state.fe_cutoff = cutoff
-st.sidebar.caption(cutoff_caption)
+    st.session_state.fe_speeder_threshold = speeder_threshold
+    st.sidebar.caption(
+        "All participants triggering any check are flagged. "
+        "Your lab manager reviews bot_flags and makes the "
+        "final exclusion decision."
+    )
+    cutoff = 75  # unused by heuristic; kept so downstream references don't break
+else:
+    st.sidebar.subheader("Suspicion Score Cutoff")
+    cutoff = st.sidebar.slider(
+        "Suspicion Score Cutoff",
+        min_value=0,
+        max_value=100,
+        value=st.session_state.get("fe_cutoff", 95),
+        label_visibility="collapsed",
+    )
+    st.session_state.fe_cutoff = cutoff
+    st.sidebar.caption("Maps to alpha: score 95 = 95% sensitivity (Ilagan & Falk, 2024).")
+    speeder_threshold = st.session_state.get("fe_speeder_threshold", 120)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Qualitative Analysis Mode")
@@ -196,8 +208,9 @@ if st.button("🚀 Run Bot Detection", type="primary", key="fe_run_btn"):
         if detection_method == "Classic (Heuristic)":
             result = run_detection_heuristic(
                 st.session_state.fe_df_raw,
-                cutoff=st.session_state.get("fe_cutoff", 75),
+                cutoff=75,
                 likert_cols=likert_cols,
+                speeder_threshold=st.session_state.get("fe_speeder_threshold", 120),
             )
         else:
             result = run_detection(
@@ -239,9 +252,10 @@ if st.session_state.get("fe_df_results") is not None:
     pct_bots = round(flagged_bots / total * 100, 1) if total > 0 else 0
     clean_n = total - flagged_bots - ineligible
 
-    st.caption(
-        f"Detection method: **{detection_method}**  |  Cutoff: {cutoff}/100"
-    )
+    if detection_method == "Classic (Heuristic)":
+        st.caption(f"Detection method: **{detection_method}**  |  Speeder threshold: {speeder_threshold}s")
+    else:
+        st.caption(f"Detection method: **{detection_method}**  |  Cutoff: {cutoff}/100")
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Participants", total)
@@ -253,6 +267,176 @@ if st.session_state.get("fe_df_results") is not None:
     )
     c3.metric("Ineligible (Q82=3)", ineligible)
     c4.metric("Clean for Analysis", clean_n)
+
+    if detection_method == "Classic (Heuristic)":
+        st.caption(
+            "Classic mode: any flagged check = excluded. "
+            "Review the bot_flags column for specific reasons. "
+            "bot_score shows the number of checks triggered per participant."
+        )
+
+    with st.expander("📖 Flag Definitions — what do these flags mean?", expanded=False):
+
+        st.markdown("#### Hard Flags — score 100, immediate exclusion")
+        st.markdown(
+            "These patterns are strong enough to flag a participant "
+            "automatically regardless of other responses."
+        )
+        st.dataframe(
+            {
+                "Flag": [
+                    "longstring_absolute",
+                    "exact_duplicate",
+                ],
+                "What triggered it": [
+                    "Same answer on >90% of all Likert items",
+                    "Identical Likert response pattern as another participant",
+                ],
+                "What it means": [
+                    "A genuine human almost never selects the same value across 90%+ of a long "
+                    "survey. This is the strongest single bot signal.",
+                    "Two or more participants submitted identical response patterns — consistent "
+                    "with bots running the same script or participants copying answers.",
+                ],
+            },
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Flag": st.column_config.TextColumn("Flag", width="medium"),
+                "What triggered it": st.column_config.TextColumn("What triggered it", width="large"),
+                "What it means": st.column_config.TextColumn("What it means", width="large"),
+            },
+        )
+
+        st.markdown("---")
+        st.markdown("#### Soft Flags — additive, contribute to bot\_score")
+        st.markdown(
+            "These checks are weaker signals individually. Multiple soft flags combine into "
+            "a composite bot\_score (0–100). A participant is flagged when their score reaches "
+            "the cutoff threshold."
+        )
+        st.dataframe(
+            {
+                "Flag": [
+                    "speeder",
+                    "low_variance",
+                    "longstring_run",
+                    "range_avoidance",
+                    "extreme_responding",
+                    "missing_data",
+                ],
+                "Points": ["+30", "+25", "+20", "+15", "+15", "+10"],
+                "What triggered it": [
+                    "Survey completed in under 120 seconds",
+                    "Response SD in bottom 10% of all participants",
+                    "Same answer on >50% of items in a consecutive run",
+                    "Only 1–2 unique values used across all items",
+                    ">80% of responses at scale endpoints (e.g. only 1s and 7s)",
+                    ">50% of Likert items left blank",
+                ],
+                "What it means": [
+                    "A survey with 100+ questions cannot be read and answered thoughtfully in "
+                    "under 2 minutes. The actual time is shown in brackets, e.g. speeder (45s < 120s).",
+                    "Humans naturally vary their answers across items. Very low variance suggests "
+                    "the participant was not reading and responding to question content.",
+                    "Consecutive identical answers across a section of the survey. Distinct from "
+                    "longstring_absolute, which checks the whole survey — this catches patterned "
+                    "repetition within blocks.",
+                    "On a 1–7 scale, humans typically use most of the range. Using only one or two "
+                    "values across the entire survey is a common bot pattern.",
+                    "While some humans do respond at extremes, selecting only the highest and lowest "
+                    "scale points across 80%+ of items is a common bot signature.",
+                    "Submitting a mostly blank Likert survey. On its own a weak signal (may reflect "
+                    "dropout), but combined with other flags contributes to the composite score.",
+                ],
+            },
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Flag": st.column_config.TextColumn("Flag", width="medium"),
+                "Points": st.column_config.TextColumn("Points", width="small"),
+                "What triggered it": st.column_config.TextColumn("What triggered it", width="large"),
+                "What it means": st.column_config.TextColumn("What it means", width="large"),
+            },
+        )
+
+        st.markdown("---")
+        st.markdown("#### L1P1 Statistical Flags (L1P1 method only)")
+        st.markdown(
+            "These flags appear when the L1P1 permutation test method is selected. They are based "
+            "on the peer-reviewed algorithm by Ilagan & Falk (2024), *Behavior Research Methods*."
+        )
+        st.dataframe(
+            {
+                "Flag": [
+                    "l1p1_permutation_test",
+                    "fast_completion",
+                    "low_variance (L1P1 context)",
+                    "longstring_run (L1P1 context)",
+                    "range_avoidance (L1P1 context)",
+                    "extreme_responding (L1P1 context)",
+                ],
+                "What it means": [
+                    "The participant's response pattern is statistically consistent with random "
+                    "responding. The algorithm permuted their responses 200 times and found that "
+                    "their actual pattern is no more structured than a random shuffle — a strong "
+                    "indicator of bot-like behavior. The l1p1_pvalue column shows the exact p-value "
+                    "(flagged when p >= alpha, default alpha = 0.05).",
+                    "Appears alongside l1p1_permutation_test when the participant also completed the "
+                    "survey in under 120 seconds. Provides additional context for why the participant "
+                    "was flagged.",
+                    "Appears as a contextual diagnostic for L1P1-flagged participants whose SD falls "
+                    "in the bottom 10% of the sample. Helps explain the statistical flag.",
+                    "Appears as a contextual diagnostic when a long consecutive run of identical "
+                    "answers is detected in an L1P1-flagged participant.",
+                    "Appears as a contextual diagnostic when an L1P1-flagged participant used only "
+                    "1–2 unique values across all items.",
+                    "Appears as a contextual diagnostic when an L1P1-flagged participant responded "
+                    "at scale endpoints for 80%+ of items.",
+                ],
+            },
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Flag": st.column_config.TextColumn("Flag", width="medium"),
+                "What it means": st.column_config.TextColumn("What it means", width="large"),
+            },
+        )
+
+        st.markdown("---")
+        st.markdown("#### Eligibility Flag (FE Study specific)")
+        st.markdown(
+            "This flag is separate from bot detection. It identifies participants who may be "
+            "genuine humans but do not meet the study's inclusion criteria."
+        )
+        st.dataframe(
+            {
+                "Flag": ["ineligible_no_group"],
+                "What triggered it": [
+                    "Participant answered Q82 = 3 (cannot think of a qualifying intellectual group)"
+                ],
+                "What it means": [
+                    "This participant did not meet the study eligibility criterion. They are shown "
+                    "in the Ineligible tab and excluded from the cleaned dataset separately from bots. "
+                    "They are NOT counted as bots — they may be genuine human participants who simply "
+                    "could not identify a qualifying group."
+                ],
+            },
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Flag": st.column_config.TextColumn("Flag", width="medium"),
+                "What triggered it": st.column_config.TextColumn("What triggered it", width="large"),
+                "What it means": st.column_config.TextColumn("What it means", width="large"),
+            },
+        )
+
+        st.markdown("---")
+        st.caption(
+            "Reference: Ilagan, M. J., & Falk, C. F. (2024). Model-agnostic unsupervised detection "
+            "of bots in a Likert-type questionnaire. *Behavior Research Methods, 56*(5), 5068–5085. "
+            "https://doi.org/10.3758/s13428-023-02246-7"
+        )
 
     tab_bots, tab_ineligible, tab_full = st.tabs([
         "🚨 Flagged Bots",
