@@ -100,7 +100,7 @@ def _process_participant(
     pval = float(np.mean(all_dists >= dist_orig))
 
     score = int(round((1 - pval) * 100))
-    is_flag = pval <= alpha
+    is_flag = pval >= alpha
     return (pval, score, is_flag)
 
 
@@ -153,10 +153,183 @@ def _compute_flag_reasons(row_values, likert_cols, all_values, timing_val=None):
             f"extreme_responding ({extreme_pct:.0f}% at endpoints {scale_min}/{scale_max})"
         )
 
+    # 5. Fast completion — if timing data available and suspiciously short
+    if timing_val is not None:
+        try:
+            t = float(timing_val)
+            if not np.isnan(t) and t < 120:
+                reasons.append(
+                    f"fast_completion ({int(t)}s < 120s expected minimum)"
+                )
+        except (ValueError, TypeError):
+            pass
+
     # Always append the statistical basis
     reasons.append("l1p1_permutation_test")
 
     return ", ".join(reasons)
+
+
+def _compute_eligibility_flag(df: pd.DataFrame) -> pd.Series:
+    """Return 'ineligible_no_group' if Q82==3, else '' for each row."""
+    if "Q82" not in df.columns:
+        return pd.Series("", index=df.index)
+    q82 = pd.to_numeric(df["Q82"], errors="coerce")
+    return q82.apply(lambda v: "ineligible_no_group" if v == 3 else "")
+
+
+def run_detection_heuristic(
+    df: pd.DataFrame,
+    cutoff: int = 75,
+    likert_cols=None,
+) -> pd.DataFrame:
+    """
+    Fast heuristic bot detection engine.
+
+    Hard flags (auto-score 100, skip remaining checks):
+      1. longstring_absolute: >90% same answer
+      2. exact_duplicate: identical Likert pattern to another row
+
+    Soft checks (additive, capped at 100):
+      3. speeder:            duration < 120s          → +30 points
+      4. low_variance:       row SD in bottom 10%     → +25 points
+      5. longstring_run:     longest run > 50% items  → +20 points
+      6. range_avoidance:    only 1-2 unique values   → +15 points
+      7. extreme_responding: >80% at scale endpoints  → +15 points
+      8. missing_data:       >50% Likert items blank  → +10 points
+    """
+    if likert_cols is None:
+        likert_cols = utils.get_likert_columns(df)
+
+    n_rows = len(df)
+
+    timing_col = next(
+        (col for col in df.columns
+         if any(term in str(col).lower() for term in ("duration", "seconds", "elapsed"))),
+        None,
+    )
+
+    if len(likert_cols) == 0:
+        result = df.copy()
+        result["bot_score"] = 0
+        result["bot_flags"] = "no_likert_columns"
+        result["is_flagged"] = False
+        result["eligibility_flag"] = _compute_eligibility_flag(df)
+        return result
+
+    likert_df = df[likert_cols].apply(pd.to_numeric, errors="coerce")
+    n_items = len(likert_cols)
+
+    # Hard flag 1: longstring_absolute (>90% same answer)
+    def _ls_abs(row):
+        vals = row.dropna().values
+        if len(vals) == 0:
+            return False
+        _, counts = np.unique(vals, return_counts=True)
+        return bool(counts.max() / len(vals) > 0.90)
+
+    ls_abs_flags = likert_df.apply(_ls_abs, axis=1)
+
+    # Hard flag 2: exact_duplicate (identical Likert pattern to another row)
+    dup_flags = df.duplicated(subset=likert_cols, keep=False).fillna(False)
+
+    hard_flagged = ls_abs_flags | dup_flags
+
+    # Speeder: fixed 120s threshold
+    if timing_col:
+        timings = pd.to_numeric(df[timing_col], errors="coerce")
+        speeder_flags = timings.lt(120).fillna(False)
+    else:
+        speeder_flags = pd.Series(False, index=df.index)
+
+    # Row standard deviations for low_variance check
+    row_sds = likert_df.std(axis=1, skipna=True)
+    sd_10th = row_sds.quantile(0.10)
+
+    # Scale endpoints
+    flat = likert_df.values.astype(float)
+    flat_valid = flat[~np.isnan(flat)]
+    scale_min = int(flat_valid.min()) if len(flat_valid) > 0 else 1
+    scale_max = int(flat_valid.max()) if len(flat_valid) > 0 else 7
+
+    bot_scores = np.zeros(n_rows, dtype=int)
+    flags_list = [""] * n_rows
+
+    for i in range(n_rows):
+        if hard_flagged.iloc[i]:
+            bot_scores[i] = 100
+            parts = []
+            if ls_abs_flags.iloc[i]:
+                parts.append("longstring_absolute")
+            if dup_flags.iloc[i]:
+                parts.append("exact_duplicate")
+            flags_list[i] = ", ".join(parts)
+            continue
+
+        score = 0
+        parts = []
+
+        # speeder
+        if speeder_flags.iloc[i]:
+            score += 30
+            try:
+                t = int(pd.to_numeric(df.iloc[i][timing_col], errors="coerce"))
+                parts.append(f"speeder ({t}s < 120s)")
+            except (ValueError, TypeError):
+                parts.append("speeder")
+
+        # low_variance
+        sd = row_sds.iloc[i]
+        if pd.notna(sd) and pd.notna(sd_10th) and sd < sd_10th:
+            score += 25
+            parts.append(f"low_variance (SD={sd:.2f}, bottom 10%)")
+
+        # longstring_run (longest consecutive run > 50% of items)
+        non_null = likert_df.iloc[i].dropna().values
+        if len(non_null) > 1:
+            max_run = 1
+            cur = 1
+            for j in range(1, len(non_null)):
+                if non_null[j] == non_null[j - 1]:
+                    cur += 1
+                    max_run = max(max_run, cur)
+                else:
+                    cur = 1
+            if max_run > len(non_null) * 0.5:
+                score += 20
+                parts.append(f"longstring_run (run={max_run}/{len(non_null)} items)")
+
+        # range_avoidance (only 1-2 unique values)
+        n_unique = int(pd.Series(non_null).nunique()) if len(non_null) > 0 else 0
+        if 0 < n_unique <= 2:
+            score += 15
+            parts.append(f"range_avoidance ({n_unique} unique value(s))")
+
+        # extreme_responding (>80% at scale endpoints)
+        if len(non_null) > 0:
+            ep = float(np.mean((non_null == scale_min) | (non_null == scale_max)))
+            if ep > 0.80:
+                score += 15
+                parts.append(
+                    f"extreme_responding ({ep * 100:.0f}% at endpoints "
+                    f"{scale_min}/{scale_max})"
+                )
+
+        # missing_data (>50% of Likert items blank)
+        n_missing = int(likert_df.iloc[i].isna().sum())
+        if n_items > 0 and n_missing / n_items > 0.50:
+            score += 10
+            parts.append(f"missing_data ({n_missing}/{n_items} blank)")
+
+        bot_scores[i] = min(score, 100)
+        flags_list[i] = ", ".join(parts)
+
+    result = df.copy()
+    result["bot_score"] = bot_scores
+    result["bot_flags"] = flags_list
+    result["is_flagged"] = pd.Series(bot_scores, index=df.index) >= cutoff
+    result["eligibility_flag"] = _compute_eligibility_flag(df)
+    return result
 
 
 def run_detection(
@@ -261,11 +434,17 @@ def run_detection(
             bot_scores[idx] = score
             flagged_arr[idx] = is_flag
             if is_flag and flags_list[idx] == "":
+                timing_val = None
+                if timing_col and timing_col in df.columns:
+                    try:
+                        timing_val = float(df.iloc[idx][timing_col])
+                    except (ValueError, TypeError):
+                        timing_val = None
                 flags_list[idx] = _compute_flag_reasons(
                     clean_matrix[pos],
                     likert_cols,
                     clean_matrix,
-                    timing_val=df.iloc[idx][timing_col] if timing_col else None,
+                    timing_val=timing_val,
                 )
 
     result = df.copy()
@@ -273,4 +452,5 @@ def run_detection(
     result["l1p1_pvalue"] = np.round(pvalues, 4)
     result["bot_flags"] = flags_list
     result["is_flagged"] = flagged_arr.astype(bool)
+    result["eligibility_flag"] = _compute_eligibility_flag(df)
     return result
