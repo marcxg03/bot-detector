@@ -60,6 +60,40 @@ if detection_method == "Classic (Heuristic)":
         ),
     )
     st.session_state.fe_speeder_threshold = speeder_threshold
+
+    with st.sidebar.expander("⚙️ Optional Checks", expanded=False):
+        use_low_variance = st.checkbox(
+            "Low Variance",
+            value=st.session_state.get("fe_use_low_variance", True),
+            key="fe_use_low_variance",
+            help=(
+                "Flag participants whose response standard deviation "
+                "falls in the bottom 10th percentile of the sample.\n\n"
+                "⚠️ Caution: This is a relative threshold. It will "
+                "always flag approximately 10% of respondents "
+                "regardless of actual data quality. Based on: "
+                "Marjanovic et al. (2015), Personality and Individual "
+                "Differences, 84, 79-83. "
+                "doi:10.1016/j.paid.2014.08.021\n\n"
+                "Review flagged cases manually before excluding."
+            ),
+        )
+        use_missing_data = st.checkbox(
+            "Missing Data (>50% blank)",
+            value=st.session_state.get("fe_use_missing_data", True),
+            key="fe_use_missing_data",
+            help=(
+                "Flag participants who left more than 50% of Likert "
+                "items blank.\n\n"
+                "⚠️ Caution: This can capture legitimate early "
+                "dropouts rather than bots — participants who could "
+                "not complete the survey for genuine reasons. "
+                "Based on: Meade & Craig (2012), Psychological "
+                "Methods, 17(3), 437-455. doi:10.1037/a0028085\n\n"
+                "Review flagged cases manually before excluding."
+            ),
+        )
+
     st.sidebar.caption(
         "All participants triggering any check are flagged. "
         "Your lab manager reviews bot_flags and makes the "
@@ -211,6 +245,8 @@ if st.button("🚀 Run Bot Detection", type="primary", key="fe_run_btn"):
                 cutoff=75,
                 likert_cols=likert_cols,
                 speeder_threshold=st.session_state.get("fe_speeder_threshold", 120),
+                use_low_variance=st.session_state.get("fe_use_low_variance", True),
+                use_missing_data=st.session_state.get("fe_use_missing_data", True),
             )
         else:
             result = run_detection(

@@ -269,6 +269,8 @@ def run_detection_heuristic(
     cutoff: int = 75,  # retained for backward compatibility; not used in flagging
     likert_cols=None,
     speeder_threshold: int = 120,
+    use_low_variance: bool = True,
+    use_missing_data: bool = True,
 ) -> pd.DataFrame:
     """
     Fast heuristic bot detection engine.
@@ -316,8 +318,12 @@ def run_detection_heuristic(
     else:
         timings = pd.Series(np.nan, index=df.index)
 
-    row_sds = likert_df.std(axis=1, skipna=True)
-    sd_10th = row_sds.quantile(0.10)
+    if use_low_variance:
+        row_sds = likert_df.std(axis=1, skipna=True)
+        sd_10th = row_sds.quantile(0.10)
+    else:
+        row_sds = None
+        sd_10th = None
 
     flat = likert_df.values.astype(float)
     flat_valid = flat[~np.isnan(flat)]
@@ -352,10 +358,11 @@ def run_detection_heuristic(
             except (ValueError, TypeError):
                 pass
 
-        # 4. low_variance (row SD in bottom 10%)
-        sd = row_sds.iloc[i]
-        if pd.notna(sd) and pd.notna(sd_10th) and sd < sd_10th:
-            flag_parts.append(f"low_variance (SD={sd:.2f})")
+        # 4. low_variance (row SD in bottom 10%) — optional
+        if use_low_variance:
+            sd = row_sds.iloc[i]
+            if pd.notna(sd) and pd.notna(sd_10th) and sd < sd_10th:
+                flag_parts.append(f"low_variance (SD={sd:.2f})")
 
         # 5. longstring_run (longest consecutive run > 50% of items)
         if len(non_null) > 1:
@@ -388,10 +395,11 @@ def run_detection_heuristic(
                     f"extreme_responding ({extreme_pct * 100:.0f}% at endpoints)"
                 )
 
-        # 8. missing_data (>50% of Likert items blank)
-        n_missing = int(likert_df.iloc[i].isna().sum())
-        if n_items > 0 and n_missing / n_items > 0.50:
-            flag_parts.append(f"missing_data ({n_missing}/{n_items} blank)")
+        # 8. missing_data (>50% of Likert items blank) — optional
+        if use_missing_data:
+            n_missing = int(likert_df.iloc[i].isna().sum())
+            if n_items > 0 and n_missing / n_items > 0.50:
+                flag_parts.append(f"missing_data ({n_missing}/{n_items} blank)")
 
         # Any flag = flagged; bot_score = flag count
         bot_scores[i] = len(flag_parts)
