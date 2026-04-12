@@ -1,5 +1,14 @@
 # KNOWN_ISSUES.md
 
+## Fix: exact_duplicate false positives on early dropouts
+🟢 Low — min_items=10 and screener threshold 0.80 are hardcoded
+   at call site. UI exposure possible if needed in future.
+🟢 Low — duplicate fix only effective in heuristic path for L1P1.
+   L1P1 pre-fills NaN before duplicate check runs — acceptable
+   since L1P1 has its own numeric_mask guard.
+🟢 Low — _compute_eligibility_flag() hardcodes Q82 column name.
+   Not in scope now but worth generalizing in future.
+
 ## Column Selection Feature
 🟢 Low — "num" in _METADATA_TERMS may over-exclude columns named
    "num_items", "enumeration" etc. Trim if real datasets affected.
