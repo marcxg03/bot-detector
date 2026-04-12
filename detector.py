@@ -16,10 +16,96 @@ DEFAULT_ALPHA = 0.05
 DEFAULT_B = 200
 
 
-def hard_flag_duplicate(df, likert_cols) -> pd.Series:
+def hard_flag_duplicate(df, likert_cols, min_items=10) -> pd.Series:
+    """
+    Flag rows whose Likert response pattern is identical to at
+    least one other row in the dataset.
+
+    Two safeguards prevent false positives from legitimate dropouts:
+
+    1. Near-constant column exclusion: columns where >80% of
+       non-null values are the same single value are excluded from
+       the comparison. These are screener or single-response items
+       (e.g. consent, eligibility) where identical values are
+       expected and carry no discriminating information.
+
+    2. Minimum response threshold: a row must have at least
+       min_items non-null values in the remaining comparison
+       columns to be eligible. Rows with fewer substantive
+       responses are too sparse for meaningful duplicate detection.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    likert_cols : list of str
+        Columns to use as the basis for duplicate detection.
+        Typically the output of utils.get_likert_columns(df).
+    min_items : int
+        Minimum number of non-null responses in non-screener
+        columns required for a row to be eligible.
+        Default: 10.
+
+    Returns
+    -------
+    pd.Series of bool, indexed like df.
+        True where a row is a confirmed duplicate of another
+        eligible row.
+
+    References
+    ----------
+    Meade, A.W., & Craig, S.B. (2012). Identifying careless
+    responses in survey data. Psychological Methods, 17(3),
+    437-455. doi:10.1037/a0028085
+
+    Chmielewski, M., & Kucker, S.C. (2020). An MTurk crisis?
+    Social Psychological and Personality Science, 11(4), 464-473.
+    doi:10.1177/1948550619875149
+    """
     if len(likert_cols) == 0:
         return pd.Series(False, index=df.index)
-    return df.duplicated(subset=likert_cols, keep=False).fillna(False)
+
+    # Coerce all Likert columns to numeric
+    likert_df = df[likert_cols].apply(pd.to_numeric, errors='coerce')
+
+    # PART A: Identify and exclude near-constant (screener) columns
+    # A column is a screener if >80% of its non-null values are
+    # the same single value — these carry no discriminating info
+    screener_cols = []
+    for col in likert_cols:
+        vals = likert_df[col].dropna()
+        if len(vals) == 0:
+            screener_cols.append(col)
+            continue
+        mode_pct = vals.value_counts().iloc[0] / len(vals)
+        if mode_pct > 0.80:
+            screener_cols.append(col)
+
+    comparison_cols = [c for c in likert_cols if c not in screener_cols]
+
+    if len(comparison_cols) == 0:
+        return pd.Series(False, index=df.index)
+
+    comparison_df = likert_df[comparison_cols]
+
+    # PART B: Identify eligible rows (>= min_items non-null responses)
+    response_counts = comparison_df.notna().sum(axis=1)
+    eligible_mask = response_counts >= min_items
+
+    # Initialize all rows as non-duplicate
+    dup_flags = pd.Series(False, index=df.index)
+
+    # Need at least 2 eligible rows to find any duplicate
+    if eligible_mask.sum() < 2:
+        return dup_flags
+
+    # Run duplicate check only on eligible rows
+    eligible_df = comparison_df[eligible_mask]
+    dup_among_eligible = eligible_df.duplicated(keep=False)
+
+    # Map results back to original index
+    dup_flags[eligible_mask] = dup_among_eligible.values
+
+    return dup_flags.fillna(False)
 
 
 def hard_flag_longstring(responses: np.ndarray) -> bool:
@@ -223,7 +309,7 @@ def run_detection_heuristic(
     n_items = len(likert_cols)
 
     # Pre-compute vectorised inputs
-    dup_flags = df.duplicated(subset=likert_cols, keep=False).fillna(False)
+    dup_flags = hard_flag_duplicate(df, likert_cols, min_items=10)
 
     if timing_col:
         timings = pd.to_numeric(df[timing_col], errors="coerce")
@@ -379,7 +465,7 @@ def run_detection(
     likert_matrix = likert_df.values.astype(np.float64)
     n_rows, _ = likert_matrix.shape
 
-    dup_flags = hard_flag_duplicate(df, likert_cols)
+    dup_flags = hard_flag_duplicate(df, likert_cols, min_items=10)
     ls_list = [hard_flag_longstring(likert_matrix[i]) for i in range(n_rows)]
     ls_flags = pd.Series(ls_list, index=df.index)
     if timing_col:

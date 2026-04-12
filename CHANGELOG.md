@@ -1,5 +1,16 @@
 # CHANGELOG.md
 
+## Fix: exact_duplicate false positives on early dropouts
+- Rewrote hard_flag_duplicate() with two safeguards:
+  1. Near-constant column exclusion (>80% same value = screener)
+  2. Minimum response threshold (min_items=10 substantive responses)
+- Fixed secondary bug: run_detection_heuristic() was calling
+  df.duplicated() directly, bypassing hard_flag_duplicate() entirely
+- Early dropout participants (answered only Q82/Q1 and stopped)
+  no longer incorrectly flagged as exact_duplicate
+- Genuine bot duplicates (identical responses across 10+ items)
+  still correctly flagged
+
 ## Column Selection Feature + Likert Detection Fix
 - utils.py: Rewrote get_likert_columns() with 6 strict rules —
   numeric coercion, integer-only values, 1-7 range, >=2 unique values,
