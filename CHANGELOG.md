@@ -1,5 +1,12 @@
 # CHANGELOG.md
 
+## Docs: HANDOVER.md created
+- 12-section handover document for lab members and Jacob
+- Covers: file map, all detection checks with citations,
+  threshold table with confirmed values from detector.py,
+  known issues, all 8 key citations in APA format
+- Contact: Marcus Gao / marcusgao@uchicago.edu / marcxg03
+
 ## Feature: Citations added to flag definitions expander
 - Added "Citation & Basis" column to all four flag tables
   (Hard Flags, Soft Flags, L1P1, Eligibility)
