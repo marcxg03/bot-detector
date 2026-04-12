@@ -418,165 +418,312 @@ if st.session_state.get("df_results") is not None:
 
     with st.expander("📖 Flag Definitions — what do these flags mean?", expanded=False):
 
-        st.markdown("#### Hard Flags — score 100, immediate exclusion")
+        st.info(
+            "**Methodological note:** Each criterion below is grounded "
+            "in the peer-reviewed careless responding and bot detection "
+            "literature. However, specific thresholds (e.g. 90% for "
+            "straightlining, 120s for speeders) are researcher-set "
+            "parameters not always directly specified in the cited "
+            "papers. Flagged participants should be reviewed manually "
+            "before exclusion, particularly for softer signals. The "
+            "lab manager makes the final exclusion decision."
+        )
+
+        st.markdown("#### Hard Flags — any occurrence = flagged")
         st.markdown(
             "These patterns are strong enough to flag a participant "
-            "automatically regardless of other responses."
+            "regardless of all other responses. bot\\_score += 1 per "
+            "flag triggered."
         )
+
+        hard_flag_data = {
+            "Flag": [
+                "longstring_absolute",
+                "exact_duplicate",
+            ],
+            "What triggered it": [
+                "Same answer on >90% of substantive Likert items",
+                "Identical Likert response pattern to another "
+                "participant (requires ≥10 non-null substantive "
+                "responses; screener-only columns excluded)",
+            ],
+            "What it means": [
+                "A genuine human almost never selects the same "
+                "value across 90%+ of a long survey. The longstring "
+                "index is the most widely used single indicator of "
+                "non-genuine responding.",
+                "Two or more participants submitted identical response "
+                "patterns across substantive items — consistent with "
+                "bots running the same script. Early dropouts who "
+                "only answered screener questions are excluded from "
+                "this check.",
+            ],
+            "Citation & Basis": [
+                "Johnson (2005), J. Research in Personality, 39, "
+                "103-129. doi:10.1016/j.jrp.2004.09.009\n"
+                "Meade & Craig (2012), Psychological Methods, 17(3), "
+                "437-455. doi:10.1037/a0028085\n"
+                "NOTE: 90% threshold is researcher-set. Johnson "
+                "proposes the index; does not specify a universal "
+                "cutoff.",
+                "Meade & Craig (2012), Psychological Methods, 17(3), "
+                "437-455. doi:10.1037/a0028085\n"
+                "Chmielewski & Kucker (2020), Social Psychological "
+                "and Personality Science, 11(4), 464-473. "
+                "doi:10.1177/1948550619875149",
+            ],
+        }
+
         st.dataframe(
-            {
-                "Flag": [
-                    "longstring_absolute",
-                    "exact_duplicate",
-                ],
-                "What triggered it": [
-                    "Same answer on >90% of all Likert items",
-                    "Identical Likert response pattern as another participant",
-                ],
-                "What it means": [
-                    "A genuine human almost never selects the same value across 90%+ of a long "
-                    "survey. This is the strongest single bot signal.",
-                    "Two or more participants submitted identical response patterns — consistent "
-                    "with bots running the same script or participants copying answers.",
-                ],
-            },
+            hard_flag_data,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Flag": st.column_config.TextColumn("Flag", width="medium"),
-                "What triggered it": st.column_config.TextColumn("What triggered it", width="large"),
-                "What it means": st.column_config.TextColumn("What it means", width="large"),
+                "Flag": st.column_config.TextColumn(
+                    "Flag", width="medium"),
+                "What triggered it": st.column_config.TextColumn(
+                    "What triggered it", width="large"),
+                "What it means": st.column_config.TextColumn(
+                    "What it means", width="large"),
+                "Citation & Basis": st.column_config.TextColumn(
+                    "Citation & Basis", width="large"),
             },
         )
 
         st.markdown("---")
-        st.markdown("#### Soft Flags — additive, contribute to bot\_score")
         st.markdown(
-            "These checks are weaker signals individually. Multiple soft flags combine into "
-            "a composite bot\_score (0–100). A participant is flagged when their score reaches "
-            "the cutoff threshold."
+            "#### Soft Flags — any occurrence = flagged, "
+            "bot\\_score += 1 each"
         )
+        st.markdown(
+            "These checks are weaker signals individually. Any single "
+            "flag marks the participant as flagged. The bot\\_score "
+            "column shows how many checks fired — higher = more "
+            "suspicious. Soft flags should be reviewed manually "
+            "before exclusion."
+        )
+
+        soft_flag_data = {
+            "Flag": [
+                "speeder",
+                "low_variance ⚙️",
+                "longstring_run",
+                "range_avoidance",
+                "extreme_responding",
+                "missing_data ⚙️",
+            ],
+            "What triggered it": [
+                "Completed survey under threshold seconds "
+                "(adjustable in sidebar, default 120s)",
+                "Response SD in bottom 10% of sample "
+                "(optional — toggle in sidebar)",
+                "Same answer consecutively on >50% of items",
+                "Only 1-2 unique values used across all items "
+                "on a 1-7 scale",
+                ">80% of responses at scale endpoints "
+                "(e.g. only 1s and 7s)",
+                ">50% of Likert items left blank "
+                "(optional — toggle in sidebar)",
+            ],
+            "What it means": [
+                "Very short response times indicate insufficient "
+                "time to read and consider item content.",
+                "Low intra-individual response variability "
+                "suggests non-engagement with item content. "
+                "⚠️ Relative threshold — always flags ~10% of "
+                "sample. Review manually.",
+                "Consecutive identical responses across a section "
+                "of the survey — consistent with key-holding or "
+                "automated responding.",
+                "Using only 1-2 values across a 7-point scale "
+                "suggests non-engagement with the full response "
+                "range.",
+                "Selecting only the highest and lowest scale "
+                "points across 80%+ of items is a documented "
+                "pattern of careless or automated responding.",
+                "More than half of Likert items left blank. "
+                "⚠️ May reflect legitimate dropout rather than "
+                "bot behavior. Review manually.",
+            ],
+            "Citation & Basis": [
+                "Greszki, Meyer & Schoen (2015), Public Opinion "
+                "Quarterly, 79(2), 471-503. "
+                "doi:10.1093/poq/nfu058\n"
+                "NOTE: Paper recommends a relative threshold "
+                "(50% of median survey time per page). Our "
+                "absolute 120s default is researcher-set and "
+                "adjustable in the sidebar.",
+                "Marjanovic et al. (2015), Personality and "
+                "Individual Differences, 84, 79-83. "
+                "doi:10.1016/j.paid.2014.08.021\n"
+                "Meade & Craig (2012), doi:10.1037/a0028085\n"
+                "NOTE: Bottom 10th percentile cutoff is a "
+                "relative threshold — always flags some "
+                "participants. Use with caution.",
+                "Johnson (2005), J. Research in Personality, "
+                "39, 103-129. doi:10.1016/j.jrp.2004.09.009\n"
+                "Meade & Craig (2012), Psychological Methods, "
+                "17(3), 437-455. doi:10.1037/a0028085\n"
+                "NOTE: 50% run threshold is researcher-set.",
+                "Ward & Meade (2023), Annual Review of "
+                "Psychology, 74, 577-596. "
+                "doi:10.1146/annurev-psych-040422-045007\n"
+                "NOTE: ≤2 unique values threshold is "
+                "researcher-set.",
+                "Meade & Craig (2012), Psychological Methods, "
+                "17(3), 437-455. doi:10.1037/a0028085\n"
+                "NOTE: 80% endpoint threshold is "
+                "researcher-set.",
+                "Meade & Craig (2012), Psychological Methods, "
+                "17(3), 437-455. doi:10.1037/a0028085\n"
+                "NOTE: 50% missing threshold is researcher-set. "
+                "May capture legitimate dropouts.",
+            ],
+        }
+
         st.dataframe(
-            {
-                "Flag": [
-                    "speeder",
-                    "low_variance",
-                    "longstring_run",
-                    "range_avoidance",
-                    "extreme_responding",
-                    "missing_data",
-                ],
-                "Points": ["+30", "+25", "+20", "+15", "+15", "+10"],
-                "What triggered it": [
-                    "Survey completed in under 120 seconds",
-                    "Response SD in bottom 10% of all participants",
-                    "Same answer on >50% of items in a consecutive run",
-                    "Only 1–2 unique values used across all items",
-                    ">80% of responses at scale endpoints (e.g. only 1s and 7s)",
-                    ">50% of Likert items left blank",
-                ],
-                "What it means": [
-                    "A survey with 100+ questions cannot be read and answered thoughtfully in "
-                    "under 2 minutes. The actual time is shown in brackets, e.g. speeder (45s < 120s).",
-                    "Humans naturally vary their answers across items. Very low variance suggests "
-                    "the participant was not reading and responding to question content.",
-                    "Consecutive identical answers across a section of the survey. Distinct from "
-                    "longstring_absolute, which checks the whole survey — this catches patterned "
-                    "repetition within blocks.",
-                    "On a 1–7 scale, humans typically use most of the range. Using only one or two "
-                    "values across the entire survey is a common bot pattern.",
-                    "While some humans do respond at extremes, selecting only the highest and lowest "
-                    "scale points across 80%+ of items is a common bot signature.",
-                    "Submitting a mostly blank Likert survey. On its own a weak signal (may reflect "
-                    "dropout), but combined with other flags contributes to the composite score.",
-                ],
-            },
+            soft_flag_data,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Flag": st.column_config.TextColumn("Flag", width="medium"),
-                "Points": st.column_config.TextColumn("Points", width="small"),
-                "What triggered it": st.column_config.TextColumn("What triggered it", width="large"),
-                "What it means": st.column_config.TextColumn("What it means", width="large"),
+                "Flag": st.column_config.TextColumn(
+                    "Flag", width="medium"),
+                "What triggered it": st.column_config.TextColumn(
+                    "What triggered it", width="large"),
+                "What it means": st.column_config.TextColumn(
+                    "What it means", width="large"),
+                "Citation & Basis": st.column_config.TextColumn(
+                    "Citation & Basis", width="large"),
             },
         )
 
         st.markdown("---")
         st.markdown("#### L1P1 Statistical Flags (L1P1 method only)")
         st.markdown(
-            "These flags appear when the L1P1 permutation test method is selected. They are based "
-            "on the peer-reviewed algorithm by Ilagan & Falk (2024), *Behavior Research Methods*."
+            "These flags appear when the L1P1 permutation test method "
+            "is selected. The algorithm is peer-reviewed and "
+            "statistically grounded — see citation below."
         )
+
+        l1p1_flag_data = {
+            "Flag": [
+                "l1p1_permutation_test",
+                "fast_completion",
+                "low_variance (L1P1 context)",
+                "longstring_run (L1P1 context)",
+                "range_avoidance (L1P1 context)",
+                "extreme_responding (L1P1 context)",
+            ],
+            "What it means": [
+                "The participant's response pattern is statistically "
+                "consistent with random responding. The algorithm "
+                "generated 200 permutations of their responses and "
+                "found their actual pattern is no more structured "
+                "than a random shuffle. The l1p1_pvalue column shows "
+                "the exact p-value. Flagged when p ≥ alpha "
+                "(default alpha=0.05, i.e. 95% sensitivity).",
+                "Contextual: participant also completed the survey "
+                "under the speeder threshold. Provides additional "
+                "context for the statistical flag.",
+                "Contextual diagnostic: flagged participant's SD "
+                "falls in the bottom 10% of the sample.",
+                "Contextual diagnostic: long consecutive run of "
+                "identical answers detected in a flagged participant.",
+                "Contextual diagnostic: flagged participant used "
+                "only 1-2 unique values across all items.",
+                "Contextual diagnostic: flagged participant "
+                "responded at scale endpoints for 80%+ of items.",
+            ],
+            "Citation & Basis": [
+                "Ilagan & Falk (2024), Behavior Research Methods, "
+                "56(5), 5068-5085. "
+                "doi:10.3758/s13428-023-02246-7\n"
+                "Falk, Huang & Ilagan (2025), Psychological "
+                "Methods. doi:10.1037/met0000746\n"
+                "Open-access code: osf.io/e5v3s\n"
+                "R package: github.com/michaeljohnilagan/detranli",
+                "Greszki et al. (2015), Public Opinion Quarterly, "
+                "79(2), 471-503. doi:10.1093/poq/nfu058",
+                "Marjanovic et al. (2015), Personality and "
+                "Individual Differences, 84, 79-83. "
+                "doi:10.1016/j.paid.2014.08.021",
+                "Johnson (2005), J. Research in Personality, 39, "
+                "103-129. doi:10.1016/j.jrp.2004.09.009",
+                "Ward & Meade (2023), Annual Review of Psychology, "
+                "74, 577-596. "
+                "doi:10.1146/annurev-psych-040422-045007",
+                "Meade & Craig (2012), Psychological Methods, "
+                "17(3), 437-455. doi:10.1037/a0028085",
+            ],
+        }
+
         st.dataframe(
-            {
-                "Flag": [
-                    "l1p1_permutation_test",
-                    "fast_completion",
-                    "low_variance (L1P1 context)",
-                    "longstring_run (L1P1 context)",
-                    "range_avoidance (L1P1 context)",
-                    "extreme_responding (L1P1 context)",
-                ],
-                "What it means": [
-                    "The participant's response pattern is statistically consistent with random "
-                    "responding. The algorithm permuted their responses 200 times and found that "
-                    "their actual pattern is no more structured than a random shuffle — a strong "
-                    "indicator of bot-like behavior. The l1p1_pvalue column shows the exact p-value "
-                    "(flagged when p >= alpha, default alpha = 0.05).",
-                    "Appears alongside l1p1_permutation_test when the participant also completed the "
-                    "survey in under 120 seconds. Provides additional context for why the participant "
-                    "was flagged.",
-                    "Appears as a contextual diagnostic for L1P1-flagged participants whose SD falls "
-                    "in the bottom 10% of the sample. Helps explain the statistical flag.",
-                    "Appears as a contextual diagnostic when a long consecutive run of identical "
-                    "answers is detected in an L1P1-flagged participant.",
-                    "Appears as a contextual diagnostic when an L1P1-flagged participant used only "
-                    "1–2 unique values across all items.",
-                    "Appears as a contextual diagnostic when an L1P1-flagged participant responded "
-                    "at scale endpoints for 80%+ of items.",
-                ],
-            },
+            l1p1_flag_data,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Flag": st.column_config.TextColumn("Flag", width="medium"),
-                "What it means": st.column_config.TextColumn("What it means", width="large"),
+                "Flag": st.column_config.TextColumn(
+                    "Flag", width="medium"),
+                "What it means": st.column_config.TextColumn(
+                    "What it means", width="large"),
+                "Citation & Basis": st.column_config.TextColumn(
+                    "Citation & Basis", width="large"),
             },
         )
 
         st.markdown("---")
-        st.markdown("#### Eligibility Flag (FE Study specific)")
+        st.markdown("#### Eligibility Flag")
         st.markdown(
-            "This flag is separate from bot detection. It identifies participants who may be "
-            "genuine humans but do not meet the study's inclusion criteria."
+            "Separate from bot detection. Identifies participants "
+            "who do not meet study inclusion criteria."
         )
+
+        elig_flag_data = {
+            "Flag": ["ineligible_no_group"],
+            "What triggered it": [
+                "Participant answered Q82 = 3 (cannot think of a "
+                "qualifying intellectual group)"
+            ],
+            "What it means": [
+                "This participant did not meet the study eligibility "
+                "criterion. They are NOT counted as bots — they may "
+                "be genuine human participants who simply could not "
+                "identify a qualifying group. Shown in the Ineligible "
+                "tab and excluded from the cleaned dataset separately."
+            ],
+            "Citation & Basis": [
+                "Study-specific eligibility criterion. Not a bot "
+                "detection method — no external citation applicable."
+            ],
+        }
+
         st.dataframe(
-            {
-                "Flag": ["ineligible_no_group"],
-                "What triggered it": [
-                    "Participant answered Q82 = 3 (cannot think of a qualifying intellectual group)"
-                ],
-                "What it means": [
-                    "This participant did not meet the study eligibility criterion. They are shown "
-                    "in the Ineligible tab and excluded from the cleaned dataset separately from bots. "
-                    "They are NOT counted as bots — they may be genuine human participants who simply "
-                    "could not identify a qualifying group."
-                ],
-            },
+            elig_flag_data,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Flag": st.column_config.TextColumn("Flag", width="medium"),
-                "What triggered it": st.column_config.TextColumn("What triggered it", width="large"),
-                "What it means": st.column_config.TextColumn("What it means", width="large"),
+                "Flag": st.column_config.TextColumn(
+                    "Flag", width="medium"),
+                "What triggered it": st.column_config.TextColumn(
+                    "What triggered it", width="large"),
+                "What it means": st.column_config.TextColumn(
+                    "What it means", width="large"),
+                "Citation & Basis": st.column_config.TextColumn(
+                    "Citation & Basis", width="large"),
             },
         )
 
         st.markdown("---")
         st.caption(
-            "Reference: Ilagan, M. J., & Falk, C. F. (2024). Model-agnostic unsupervised detection "
-            "of bots in a Likert-type questionnaire. *Behavior Research Methods, 56*(5), 5068–5085. "
-            "https://doi.org/10.3758/s13428-023-02246-7"
+            "**Key references:** "
+            "Johnson (2005) doi:10.1016/j.jrp.2004.09.009 · "
+            "Meade & Craig (2012) doi:10.1037/a0028085 · "
+            "Greszki et al. (2015) doi:10.1093/poq/nfu058 · "
+            "Marjanovic et al. (2015) doi:10.1016/j.paid.2014.08.021 · "
+            "Ward & Meade (2023) doi:10.1146/annurev-psych-040422-045007 · "
+            "Chmielewski & Kucker (2020) doi:10.1177/1948550619875149 · "
+            "Ilagan & Falk (2024) doi:10.3758/s13428-023-02246-7 · "
+            "Falk et al. (2025) doi:10.1037/met0000746"
         )
 
     tab1, tab2 = st.tabs(["🚨 Flagged Responses", "📋 Full Results"])
