@@ -1,5 +1,14 @@
 # KNOWN_ISSUES.md
 
+## Feature: low_variance and missing_data optional toggle checks
+🟢 Low — low_variance 10th-percentile cutoff is hardcoded.
+   Could be exposed as a numeric input in a future pass.
+🟢 Low — missing_data 50% threshold is hardcoded.
+   Same — could be a numeric input if needed.
+🟢 Low — use_low_variance/use_missing_data session state persists
+   when switching Classic → L1P1 → Classic. Harmless (ignored by
+   L1P1) but could be surprising to the user.
+
 ## Fix: exact_duplicate false positives on early dropouts
 🟢 Low — min_items=10 and screener threshold 0.80 are hardcoded
    at call site. UI exposure possible if needed in future.

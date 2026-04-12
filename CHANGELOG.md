@@ -1,5 +1,13 @@
 # CHANGELOG.md
 
+## Feature: low_variance and missing_data optional toggle checks
+- Added use_low_variance and use_missing_data boolean parameters
+  to run_detection_heuristic() — both default True (backward compat)
+- SD computation skipped entirely when use_low_variance=False
+- Optional Checks expander added to Classic sidebar on both pages
+- Expander does not appear when L1P1 is selected
+- Tooltips include citation and caution note for each check
+
 ## Fix: exact_duplicate false positives on early dropouts
 - Rewrote hard_flag_duplicate() with two safeguards:
   1. Near-constant column exclusion (>80% same value = screener)
