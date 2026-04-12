@@ -1,5 +1,13 @@
 # KNOWN_ISSUES.md
 
+## Feature: Citations added to flag definitions expander
+🟢 Low — OSF and GitHub links in L1P1 citation cell are plain
+   text, not clickable. Streamlit dataframes don't render
+   markdown. Move to st.markdown if clickable links needed.
+🟢 Low — Falk et al. (2025) DOI (10.1037/met0000746) listed
+   as advance online publication. Verify final DOI before
+   citing in manuscript.
+
 ## Feature: low_variance and missing_data optional toggle checks
 🟢 Low — low_variance 10th-percentile cutoff is hardcoded.
    Could be exposed as a numeric input in a future pass.

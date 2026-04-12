@@ -1,5 +1,17 @@
 # CHANGELOG.md
 
+## Feature: Citations added to flag definitions expander
+- Added "Citation & Basis" column to all four flag tables
+  (Hard Flags, Soft Flags, L1P1, Eligibility)
+- Added methodological note at top of expander with honest
+  threshold caveats
+- Removed stale "Points" column from Soft Flags table
+  (reflected old weighted engine, no longer accurate)
+- Added ⚙️ label to low_variance and missing_data rows
+- Added ⚠️ caution notes inline for relative/arbitrary thresholds
+- Added 8-reference citation footer with all DOIs
+- Applied identically to app.py and pages/FE_Study.py
+
 ## Feature: low_variance and missing_data optional toggle checks
 - Added use_low_variance and use_missing_data boolean parameters
   to run_detection_heuristic() — both default True (backward compat)
